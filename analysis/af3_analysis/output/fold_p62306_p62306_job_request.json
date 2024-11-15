@@ -1,0 +1,21 @@
+[{
+ "name": "P62306_P62306",
+ "modelSeeds": [
+  "954238818"
+ ],
+ "sequences": [
+  {
+   "proteinChain": {
+    "sequence": "MSLPLNPKPFLNGLTGKPVMVKLKWGMEYKGYLVSVDGYMNMQLANTEEYIDGALSGHLGEVLIRCNNVLYIRGVEEEEEDGEMRE",
+    "count": 1
+   }
+  },
+  {
+   "proteinChain": {
+    "sequence": "MSLPLNPKPFLNGLTGKPVMVKLKWGMEYKGYLVSVDGYMNMQLANTEEYIDGALSGHLGEVLIRCNNVLYIRGVEEEEEDGEMRE",
+    "count": 1
+   }
+  }
+ ]
+}
+]
