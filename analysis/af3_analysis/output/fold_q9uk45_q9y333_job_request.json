@@ -1,0 +1,21 @@
+[{
+ "name": "Q9UK45_Q9Y333",
+ "modelSeeds": [
+  "1593011562"
+ ],
+ "sequences": [
+  {
+   "proteinChain": {
+    "sequence": "MADKEKKKKESILDLSKYIDKTIRVKFQGGREASGILKGFDPLLNLVLDGTIEYMRDPDDQYKLTEDTRQLGLVVCRGTSVVLICPQDGMEAIPNPFIQQQDA",
+    "count": 1
+   }
+  },
+  {
+   "proteinChain": {
+    "sequence": "MLFYSFFKSLVGKDVVVELKNDLSICGTLHSVDQYLNIKLTDISVTDPEKYPHMLSVKNCFIRGSVVRYVQLPADEVDTQLLQDAARKEALQQKQ",
+    "count": 1
+   }
+  }
+ ]
+}
+]

@@ -1,0 +1,21 @@
+[{
+ "name": "O75506_O75506",
+ "modelSeeds": [
+  "1951610312"
+ ],
+ "sequences": [
+  {
+   "proteinChain": {
+    "sequence": "MAETDPKTVQDLTSVVQTLLQQMQDKFQTMSDQIIGRIDDMSSRIDDLEKNIADLMTQAGVEELESENKIPATQKS",
+    "count": 1
+   }
+  },
+  {
+   "proteinChain": {
+    "sequence": "MAETDPKTVQDLTSVVQTLLQQMQDKFQTMSDQIIGRIDDMSSRIDDLEKNIADLMTQAGVEELESENKIPATQKS",
+    "count": 1
+   }
+  }
+ ]
+}
+]
