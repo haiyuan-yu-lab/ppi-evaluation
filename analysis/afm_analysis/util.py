@@ -1,6 +1,11 @@
 import sys
 import os
 
+# Add project root to sys.path
+PROJECT_ROOT = os.path.expanduser("~/ppi-evaluation")
+sys.path.append(PROJECT_ROOT)
+
+
 # Analysis path
 AF3_ANALYSIS_PATH = os.path.join(PROJECT_ROOT, "analysis/af3_analysis")
 AFM_ANALYSIS_PATH = os.path.join(PROJECT_ROOT, "analysis/afm_analysis")
