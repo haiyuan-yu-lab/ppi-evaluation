@@ -1,26 +1,9 @@
 import os
 import zipfile
-import pandas as pd
 from Bio import SeqIO
 from feature_extraction import *
 import json     
 from util import *         
-
-# Function to assign structural and nonstructural labels for catergorizations.
-def categorize_predictions(pred_protein_a, pred_protein_b):
-    pred_protein_a = pred_protein_a.upper()
-    pred_protein_b = pred_protein_b.upper()
-    ppi = pred_protein_a + ':' + pred_protein_b
-    print(ppi)
-
-    label_data = pd.read_csv('/home/yl986/data/protein_interaction/results/af3_ppi_with_label.csv')
-
-    for _, row in label_data.iterrows():
-        ppi_ref = row['ppi']
-        if ppi_ref == ppi:
-            nonstr_label = row['non_struct_label']
-            str_label = row['str_label']
-            return nonstr_label, str_label
 
 
 def process_zip(zip_folder, output_dir, metrics_df):
