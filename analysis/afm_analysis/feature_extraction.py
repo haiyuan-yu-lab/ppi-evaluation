@@ -1,10 +1,105 @@
 import numpy as np
 import os
 from util import *  
-from Bio.PDB.MMCIFParser import MMCIFParser
 from Bio import SeqIO
 import json
+from Bio.PDB import PDBParser
 import pandas as pd
+
+
+
+def read_pdb(pdb_file):
+    """
+    Parse a PDB file to extract chain coordinates, plDDT scores, and sequences.
+    """
+    chain_coords = {}
+    chain_plddt = {}
+    chain_sequences = {}
+
+    try:
+        with open(pdb_file, 'r') as f:
+            current_chain = None
+
+            for line in f:
+                if line.startswith("ATOM"):
+                    # Extract chain, coordinates, and plDDT
+                    chain = line[21].strip()
+                    x, y, z = map(float, (line[30:38], line[38:46], line[46:54]))
+                    plddt = float(line[60:66].strip())
+                    res_id = line[17:20].strip()  # Residue 3-letter code
+
+                    # Initialize the chain if not already present
+                    if chain not in chain_coords:
+                        chain_coords[chain] = []
+                        chain_plddt[chain] = []
+                        chain_sequences[chain] = []
+
+                    # Append coordinates, plDDT, and sequence
+                    chain_coords[chain].append([x, y, z])
+                    chain_plddt[chain].append(plddt)
+                    one_letter_residue = residue_to_one_letter(res_id)
+                    if one_letter_residue:
+                        chain_sequences[chain].append(one_letter_residue)
+
+            # Convert lists to arrays and sequences to strings
+            for chain in chain_coords:
+                chain_coords[chain] = np.array(chain_coords[chain])
+                chain_plddt[chain] = np.array(chain_plddt[chain])
+                chain_sequences[chain] = "".join(chain_sequences[chain])
+
+    except Exception as e:
+        log_message(f"Error reading PDB file {pdb_file}: {e}")
+
+    return chain_coords, chain_plddt, chain_sequences
+
+
+def residue_to_one_letter(residue):
+    """
+    Helper method to convert three-letter residue codes to one-letter codes.
+    """
+    three_to_one_map = {
+        "ALA": "A", "ARG": "R", "ASN": "N", "ASP": "D", "CYS": "C",
+        "GLU": "E", "GLN": "Q", "GLY": "G", "HIS": "H", "ILE": "I",
+        "LEU": "L", "LYS": "K", "MET": "M", "PHE": "F", "PRO": "P",
+        "SER": "S", "THR": "T", "TRP": "W", "TYR": "Y", "VAL": "V",
+    }
+    return three_to_one_map.get(residue, None)
+
+
+def get_lowest_ranked_pdb(folder_path):
+    """
+    Find the lowest-ranked PDB file in the given folder.
+    If none are found, prioritize 'relaxed_model_{number}_multimer_...pdb'.
+    If none are found, fall back to 'unrelaxed_model_...pdb'.
+    """
+    # Look for ranked_*.pdb files
+    ranked_files = [
+        f for f in os.listdir(folder_path) if f.startswith("ranked_") and f.endswith(".pdb")
+    ]
+    if ranked_files:
+        ranked_files.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
+        return os.path.join(folder_path, ranked_files[0])
+
+    # Look for relaxed_model_{number}_multimer_...pdb files
+    relaxed_files = [
+        f for f in os.listdir(folder_path) if f.startswith("relaxed_model_") and f.endswith(".pdb")
+    ]
+    if relaxed_files:
+        relaxed_files.sort(key=lambda x: int(x.split('_')[2]))
+        return os.path.join(folder_path, relaxed_files[0])
+
+    # Look for unrelaxed_model_...pdb files
+    unrelaxed_files = [
+        f for f in os.listdir(folder_path) if f.startswith("unrelaxed_model_") and f.endswith(".pdb")
+    ]
+    if unrelaxed_files:
+        unrelaxed_files.sort(key=lambda x: int(x.split('_')[2]))
+        return os.path.join(folder_path, unrelaxed_files[0])
+
+    # If no PDB files are found
+    return None
+
+
 
 # Function to assign structural and nonstructural labels for catergorizations.
 def categorize_predictions(pred_protein_a, pred_protein_b):
@@ -21,6 +116,10 @@ def categorize_predictions(pred_protein_a, pred_protein_b):
             nonstr_label = row['non_struct_label']
             str_label = row['str_label']
             return nonstr_label, str_label
+
+
+
+############################################ Computing AF prediction metrics (pDockQ, LIS, pDockQ2) ##########################
 
 
 # Function to compute LIS score based on the reference code
@@ -48,7 +147,6 @@ def compute_lis(pae_matrix, chain_a_len, pae_cutoff=12.0):
 def reverse_and_scale_matrix(matrix: np.ndarray, pae_cutoff: float = 12.0) -> np.ndarray:
     scaled_matrix = (pae_cutoff - matrix) / pae_cutoff
     return np.clip(scaled_matrix, 0, 1)
-
 
 # Function to calculate pDockQ
 def calc_pdockq(chain_coords, chain_plddt, t):
@@ -103,8 +201,6 @@ def calc_pdockq(chain_coords, chain_plddt, t):
 
     return pdockq, ppv
 
-
-
 # Function to compute pDockQ2
 def compute_pdockq2(plddt, pae):
     L = 1.31
@@ -114,69 +210,6 @@ def compute_pdockq2(plddt, pae):
     pDockQ2 = L / (1 + np.exp(-k * (plddt - pae / 10 - x0))) + b
     return pDockQ2
 
-# Function to parse CIF file and extract chain coordinates and pLDDT values (for all atoms)
-def read_cif(cif_file):
-    '''
-    Read a .cif file to contain all chains.
-    '''
-    chain_coords, chain_plddt = {}, {}
-    try:
-        parser = MMCIFParser(QUIET=True)
-        structure = parser.get_structure("structure", cif_file)
 
-        for model in structure:
-            for chain in model:
-                for residue in chain:
-                    for atom in residue:
-                        if atom.get_name() == 'CB' or (atom.get_name() == 'CA' and residue.get_resname() == 'GLY'):
-                            if chain.id in chain_coords:
-                                chain_coords[chain.id].append(atom.get_coord())
-                                chain_plddt[chain.id].append(atom.get_bfactor())  # Assuming pLDDT values are stored in the B-factor field
-                            else:
-                                chain_coords[chain.id] = [atom.get_coord()]
-                                chain_plddt[chain.id] = [atom.get_bfactor()]
 
-        # Convert to arrays
-        for chain in chain_coords:
-            chain_coords[chain] = np.array(chain_coords[chain])
-            chain_plddt[chain] = np.array(chain_plddt[chain])
 
-        return chain_coords, chain_plddt
-
-    except Exception as e:
-        print(f"Error parsing CIF file {cif_file}: {e}")
-        return None, None
-
-def extract_sequences_from_json(job_request_file):
-    """
-    Extract protein sequences from the job request JSON file.
-
-    Args:
-        job_request_file (str): Path to the job request JSON file.
-
-    Returns:
-        tuple: Sequence for prot1 and prot2.
-    """
-    sequences = []
-    if os.path.exists(job_request_file):
-        try:
-            with open(job_request_file, 'r') as f:
-                data = json.load(f)
-
-            # Extract sequences from JSON structure
-            for entry in data:
-                for seq_entry in entry.get("sequences", []):
-                    seq = seq_entry.get("proteinChain", {}).get("sequence", "")
-                    if seq:
-                        sequences.append(seq)
-
-        except Exception as e:
-            log_message(f"Error reading JSON file {job_request_file}: {e}")
-    else:
-        log_message(f"Job request JSON file not found: {job_request_file}")
-
-    # Ensure we have two sequences
-    if len(sequences) < 2:
-        log_message(f"Less than two sequences found in {job_request_file}")
-
-    return sequences[0] if len(sequences) > 0 else "", sequences[1] if len(sequences) > 1 else ""
