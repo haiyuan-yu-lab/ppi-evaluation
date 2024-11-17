@@ -1,10 +1,15 @@
 import os
 import zipfile
 from Bio import SeqIO
-from feature_extraction import *
 import json     
-from util import *         
+import sys
 
+# Add the project root (ppi-evaluation/) to sys.path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from util import *
+from compute_features import *
+from feature_extraction import *                
 
 def process_zip(zip_folder, output_dir, metrics_df):
     

@@ -2,11 +2,17 @@ import os
 import zipfile
 import pandas as pd
 from Bio import SeqIO
-from feature_extraction import *
 import json     
-from util import *         
 import pickle
+import sys
+import numpy as np
 
+# Add the project root (ppi-evaluation/) to sys.path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from util import read_pdb, log_message
+from compute_features import compute_lis, calc_pdockq, compute_pdockq2, categorize_predictions
+from feature_extraction import get_lowest_ranked_pdb
 
 def process_afm_folder(folder_path, metrics_df):
     """
