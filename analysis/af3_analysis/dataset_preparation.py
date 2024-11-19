@@ -20,10 +20,14 @@ def process_zip(zip_folder, output_dir, metrics_df):
         zip_name = zip_file.replace('.zip', '')
         protein_a, protein_b = zip_name.split('_')[1:3]
         
-        # Extract sequences for prot1 and prot2
-        #seq1, seq2 = read_fasta_sequence(protein_a, protein_b)
+        # Exclude homo-dimers from our analysis
+        if protein_a == protein_b:
+            print(f"Homo-dimer {protein_a}_{protein_b} excluded!")
+            continue
 
+        # Extract labels 
         nonstr_label, str_label = categorize_predictions(protein_a, protein_b)
+        
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(output_dir)
 

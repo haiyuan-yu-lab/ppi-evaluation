@@ -142,6 +142,23 @@ def residue_to_one_letter(residue):
     return three_to_one_map.get(residue, None)
 
 
+
+def delete_rows(df):
+    """
+    Removes rows from the DataFrame where the values in 'prot1' and 'prot2' columns are identical.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame.
+
+    Returns:
+        pd.DataFrame: A DataFrame with the specified rows removed.
+    """
+    # Keep rows where 'prot1' is not equal to 'prot2'
+    filtered_df = df[df['prot1'] != df['prot2']].reset_index(drop=True)
+    return filtered_df
+
+
+
 # Debugging purpose
 def log_message(message):
     print(f"[LOG]: {message}")
