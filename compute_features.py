@@ -115,6 +115,9 @@ def categorize_predictions(pred_protein_a, pred_protein_b):
             str_label = row['str_label']
             return nonstr_label, str_label
 
+    # If no match is found, return None for both labels
+    print(f"No match found for {ppi}. Returning None for labels.")
+    return None, None
 
 
 
