@@ -11,10 +11,11 @@ from util import *
 from compute_features import *
 from feature_extraction import *                
 
-def process_zip(zip_folder, output_dir, metrics_df):
+def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
     
     zip_files = [f for f in os.listdir(zip_folder) if f.endswith('.zip')]
- 
+
+
     for zip_file in zip_files:
         zip_path = os.path.join(zip_folder, zip_file)
         zip_name = zip_file.replace('.zip', '')
@@ -28,7 +29,11 @@ def process_zip(zip_folder, output_dir, metrics_df):
         # Extract labels 
         nonstr_label, str_label = categorize_predictions(protein_a, protein_b)
         
-        if nonstr_label == None or str_label == None:
+        # If both labels are missing, log the entry to the text file
+        if nonstr_label is None and str_label is None:
+            with open(log_file_path, 'a') as log_file:
+                log_file.write(f"{protein_a}_{protein_b}\n")
+            print(f"Logged missing labels for {protein_a}_{protein_b}")
             continue
 
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
@@ -55,7 +60,40 @@ def process_zip(zip_folder, output_dir, metrics_df):
         plddt = np.mean(np.array(full_data['atom_plddts']))
         pae_matrix = np.array(full_data['pae'])
         mean_pae = np.mean(pae_matrix)
+        
+        # Get the structure of a MMCIF file
+        structure = get_structure(cif_file)
+        chains = [chain.id for chain in structure[0]]
+    
+        # Process all chains iteratively
+        plddt_lst = []
+        remain_contact_lst = []
 
+
+        for idx in range(len(chains)):
+            main_chain = chains[idx]
+            contact_chains = list(set(chains) - {main_chain})
+
+            IF_plddt, contact_lst = retrieve_IFplddt(
+                structure, main_chain, contact_chains, 8
+            )
+
+
+            plddt_lst.append(IF_plddt)
+            remain_contact_lst.append(contact_lst)
+
+
+        # Aggregate mean interface metrics
+        mean_IF_pLDDT = np.mean(plddt_lst)
+        
+        avgif_pae = retrieve_IFPAEinter(structure, pae_matrix, remain_contact_lst, 8)
+
+        pdockq2 = calc_pmidockq(avgif_pae, plddt_lst)['pmidockq'].mean()
+        
+        ## Print output 
+        print(f"pDockQ2: {pdockq2}")
+        print(f"interface pLDDT: {plddt_lst}")
+        print(f"mean interface PAE: {avgif_pae}")
 
         # Calculate LIS
         chain_a_len = len(pae_matrix) // 2
@@ -64,7 +102,6 @@ def process_zip(zip_folder, output_dir, metrics_df):
         # Read CIF file and calculate pDockQ
         chain_coords, chain_plddt = read_cif(cif_file)
         pDockQ, _ = calc_pdockq(chain_coords, chain_plddt, 8)
-        pDockQ2 = compute_pdockq2(plddt, mean_pae)
 
         # Load summary for additional metrics
         with open(summary_json, 'r') as f:
@@ -74,24 +111,27 @@ def process_zip(zip_folder, output_dir, metrics_df):
         ranking_confidence = summary_data.get('ranking_score', None)
 
         # Add data to DataFrame if all required metrics are available
-        if None not in (pDockQ, pDockQ2, lis_score, iptm, ptm, ranking_confidence):
-            metrics_df = metrics_df.append({
+        if None not in (pDockQ, pdockq2, lis_score, iptm, ptm, ranking_confidence):
+            row = pd.DataFrame([{
                 'prot1': protein_a,
                 'prot2': protein_b,
                 'sequence_A': seq1,
                 'sequence_B': seq2,
                 'nonstr_label': nonstr_label,
                 'str_label': str_label,
-                'pLDDT': round(plddt, 3),
-                'pAE': round(mean_pae, 3),
+                'mean_pLDDT': round(plddt, 3),
+                'mean_pAE': round(mean_pae, 3),
+                'mean_interface_pLDDT': round(mean_IF_pLDDT, 3),
+                'mean_interface_pAE': round(np.mean(avgif_pae), 3),
                 'pDockQ': pDockQ,
-                'pDockQ2': pDockQ2,
+                'pDockQ2': round(pdockq2, 3),
                 'LIS': lis_score,
                 'ipTM': round(float(iptm), 3),
                 'pTM': round(float(ptm), 3),
                 'ranking_score': round(float(ranking_confidence), 2)
-            }, ignore_index=True)
+            }])
 
+            metrics_df = pd.concat([metrics_df, row],ignore_index=True)
 
     return metrics_df
 
@@ -101,10 +141,12 @@ def create_af3_dataset(zip_folder, output_dir):
     Processes all AF3 .zip files to generate a complete DataFrame with all features and sequences.
     """
     metrics_df = pd.DataFrame(columns=['prot1', 'prot2', 'sequence_A', 'sequence_B',
-                                       'nonstr_label', 'str_label', 'pLDDT', 'pAE',
+                                       'nonstr_label', 'str_label', 'mean_pLDDT', 'mean_pAE',
+                                       'mean_interface_pLDDT', 'mean_interface_pAE',
                                        'pDockQ', 'pDockQ2', 'LIS', 'ipTM', 'pTM',
                                        'ranking_score'])
-    
-    metrics_df = process_zip(zip_folder, output_dir, metrics_df) #(zip_folder, zip_file, output_dir, metrics_df)
+
+
+    metrics_df = process_zip(zip_folder, output_dir, metrics_df, MISSING_PPI_LABEL)
 
     return metrics_df
