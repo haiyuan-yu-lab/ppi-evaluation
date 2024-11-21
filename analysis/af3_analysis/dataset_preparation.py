@@ -28,14 +28,21 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
 
         # Extract labels 
         nonstr_label, str_label = categorize_predictions(protein_a, protein_b)
-        
+
+        # Record missing PPI labels
+        logged_entries = set()
+
         # If both labels are missing, log the entry to the text file
         if nonstr_label is None and str_label is None:
-            with open(log_file_path, 'a') as log_file:
-                log_file.write(f"{protein_a}_{protein_b}\n")
-            print(f"Logged missing labels for {protein_a}_{protein_b}")
+            entry = f"{protein_a}_{protein_b}"
+            if not os.path.exists(MISSING_PPI_LABEL):
+                if entry not in logged_entries:
+                    with open(log_file_path, 'a') as log_file:
+                        log_file.write(entry + "\n")
+                    logged_entries.add(entry)
             continue
 
+        # Extract AF3 prediction .zip files
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(output_dir)
 
@@ -53,7 +60,7 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
         seq1, seq2 = extract_sequences_from_json(job_request_json)
         print(f"seq1: {seq1}, seq2: {seq2}")
 
-        # Extract pLDDT and PAE
+        # Extract mean pLDDT and PAE scores 
         with open(full_data_json, 'r') as f:
             full_data = json.load(f)
 
@@ -69,7 +76,7 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
         plddt_lst = []
         remain_contact_lst = []
 
-
+        # Extract pLDDT & PAE scores of the PPI-interface.
         for idx in range(len(chains)):
             main_chain = chains[idx]
             contact_chains = list(set(chains) - {main_chain})
