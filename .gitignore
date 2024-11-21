@@ -1,6 +1,6 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
-*.py[cod]
+
 *$py.class
 
 # Ignore temporary and extracted files
@@ -26,4 +26,5 @@ Thumbs.db
 venv/
 .env/
 
-
+# Ignore script files from my local end.
+*.sh
