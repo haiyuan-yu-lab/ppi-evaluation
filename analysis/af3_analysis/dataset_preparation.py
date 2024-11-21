@@ -52,10 +52,19 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
         full_data_json = os.path.join(output_dir, f"{zip_name}_full_data_0.json")
         summary_json = os.path.join(output_dir, f"{zip_name}_summary_confidences_0.json")
         job_request_json = os.path.join(output_dir, f"{zip_name}_job_request.json")
+        
+        json_data = json.load(open(full_data_json, 'rb'))
 
         if not (os.path.exists(cif_file) and os.path.exists(summary_json) and os.path.exists(full_data_json)):
             #print(f"Files missing for {zip_name}")
             continue
+        
+        token_chain_ids = json_data['token_chain_ids']
+        chain_residue_counts = Counter(token_chain_ids)
+        subunit_number = list(chain_residue_counts.values())
+        subunit_sizes = subunit_number
+
+    
 
         # Extract sequences for prot1 and prot2
         seq1, seq2 = extract_sequences_from_json(job_request_json)
@@ -68,7 +77,32 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
         plddt = np.mean(np.array(full_data['atom_plddts']))
         pae_matrix = np.array(full_data['pae'])
         mean_pae = np.mean(pae_matrix)
+       
+
+        # Transform the PAE matrix
+        transformed_pae_matrix = transform_pae_matrix(pae_matrix)
+        transformed_pae_matrix = np.nan_to_num(transformed_pae_matrix)
+        lia_map = np.where(transformed_pae_matrix > 0, 1, 0)
+
+        # Calculate mean LIS matrix
+        mean_lis_matrix = calculate_mean_lis(transformed_pae_matrix, subunit_sizes)
+        mean_lis_matrix = np.nan_to_num(mean_lis_matrix)
+
+        print(mean_lis_matrix) 
+        lis_score = (mean_lis_matrix[0,1] + mean_lis_matrix[1,0]) / 2
+
+        # Calculate contact map
+        contact_map = calculate_contact_map(cif_file)
+        combined_map = np.where((transformed_pae_matrix > 0) & (contact_map == 1), transformed_pae_matrix, 0)
+ 
+        # Calculate the mean LIS matrix
+        mean_clis_matrix = calculate_mean_lis(combined_map, subunit_sizes)
+        mean_clis_matrix = np.nan_to_num(mean_clis_matrix)
+
+        lia_matrix, lir_matrix, clia_matrix, clir_matrix = get_lia_lir_matrices(subunit_sizes, lia_map, combined_map)
+
         
+
         # Get the structure of a MMCIF file
         structure = get_structure(cif_file)
         chains = [chain.id for chain in structure[0]]
@@ -104,9 +138,6 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
         #print(f"interface pLDDT: {plddt_lst}")
         #print(f"mean interface PAE: {avgif_pae}")
 
-        # Calculate LIS
-        chain_a_len = len(pae_matrix) // 2
-        lis_score = compute_lis(pae_matrix, chain_a_len)
 
         # Read CIF file and calculate pDockQ
         chain_coords, chain_plddt = read_cif(cif_file)

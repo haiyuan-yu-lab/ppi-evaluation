@@ -4,34 +4,155 @@ from util import *
 from Bio.PDB.MMCIFParser import MMCIFParser
 from Bio import SeqIO
 import pandas as pd
+from scipy.spatial.distance import pdist, squareform
+from collections import Counter
 
 
+def transform_pae_matrix(pae_matrix, pae_cutoff=12):
+    # Initialize the transformed matrix with zeros
+    transformed_pae = np.zeros_like(pae_matrix)
 
-# Function to compute LIS score based on the reference code
-def compute_lis(pae_matrix, chain_a_len, pae_cutoff=12.0):
-    try:
-        thresholded_pae = np.where(pae_matrix < pae_cutoff, 1, 0)
-        scaled_pae = reverse_and_scale_matrix(pae_matrix, pae_cutoff)
+    # Apply transformation: pae = 0 -> score = 1, pae = cutoff -> score = 0, above cutoff -> score = 0
+    # Linearly scale values between 0 and cutoff to fall between 1 and 0
+    within_cutoff = pae_matrix < pae_cutoff
+    transformed_pae[within_cutoff] = 1 - (pae_matrix[within_cutoff] / pae_cutoff)
 
-        selected_values_interaction1_score = scaled_pae[:chain_a_len, chain_a_len:][thresholded_pae[:chain_a_len, chain_a_len:] == 1]
-        average_selected_interaction1_score = np.mean(selected_values_interaction1_score) if selected_values_interaction1_score.size > 0 else 0
+    return transformed_pae
 
-        selected_values_interaction2_score = scaled_pae[chain_a_len:, :chain_a_len][thresholded_pae[chain_a_len:, :chain_a_len] == 1]
-        average_selected_interaction2_score = np.mean(selected_values_interaction2_score) if selected_values_interaction2_score.size > 0 else 0
+def calculate_mean_lis(transformed_pae, subunit_number):
+    # Calculate the cumulative sum of protein lengths to get the end indices of the submatrices
+    cum_lengths = np.cumsum(subunit_number)
 
-        average_selected_interaction_total_score = (average_selected_interaction1_score + average_selected_interaction2_score) / 2
+    # Add a zero at the beginning of the cumulative lengths to get the start indices
+    start_indices = np.concatenate(([0], cum_lengths[:-1]))
 
-        lis = round(average_selected_interaction_total_score, 3)
+    # Initialize an empty matrix to store the mean LIS
+    mean_lis_matrix = np.zeros((len(subunit_number), len(subunit_number)))
 
-        return lis
-    except Exception as e:
-        return None
+    # Iterate over the start and end indices
+    for i in range(len(subunit_number)):
+        for j in range(len(subunit_number)):
+            # Get the start and end indices of the interaction submatrix
+            start_i, end_i = start_indices[i], cum_lengths[i]
+            start_j, end_j = start_indices[j], cum_lengths[j]
+
+            # Get the interaction submatrix
+            submatrix = transformed_pae[start_i:end_i, start_j:end_j]
+            
+            if submatrix[submatrix > 0].size > 0:
+                mean_lis = submatrix[submatrix > 0].mean()
+            else:
+                mean_lis = 0
+
+
+            mean_lis_matrix[i, j] = mean_lis
+
+    return mean_lis_matrix
+
+
+def calculate_contact_map(cif_file, distance_threshold=8):
+    def read_cif_lines(cif_path):
+        with open(cif_path, 'r') as file:
+            lines = file.readlines()
+
+        residue_lines = []
+        for line in lines:
+            if line.startswith('ATOM') and ('CB' in line or 'GLY' in line and 'CA' in line):
+                residue_lines.append(line.strip())  # Store the line if it meets the criteria for ATOM
+
+            if line.startswith('ATOM') and 'P   ' in line:
+                residue_lines.append(line.strip()) # Store the line if it meets the criteria for ATOM
+
+            elif line.startswith('HETATM'):
+                residue_lines.append(line.strip())  # Store all HETATM lines
+
+        return residue_lines
+
+    def lines_to_dataframe(residue_lines):
+        # Split lines and create a list of dictionaries for each atom
+        data = []
+        for line in residue_lines:
+            parts = line.split()
+            # Correctly convert numerical values
+            for i in range(len(parts)):
+                try:
+                    parts[i] = float(parts[i])
+                except ValueError:
+                    pass
+            data.append(parts)
+
+        df = pd.DataFrame(data)
+
+        # Add line number column
+        df.insert(0, 'residue', range(1, 1 + len(df)))
+
+        return df
+
+    # Read lines from CIF file
+    residue_lines = read_cif_lines(cif_file)
+
+    # Convert lines to DataFrame
+    df = lines_to_dataframe(residue_lines)
+
+    # Assuming the columns for x, y, z coordinates are at indices 11, 12, 13 after insertion
+    coordinates = df.iloc[:, 11:14].to_numpy()
+
+    distances = squareform(pdist(coordinates))
+
+    # Assuming the column for atom names is at index 3 after insertion
+    has_phosphorus = df.iloc[:, 3].apply(lambda x: 'P' in str(x)).to_numpy()
+
+    # Adjust the threshold for phosphorus-containing residues
+    adjusted_distances = np.where(has_phosphorus[:, np.newaxis] | has_phosphorus[np.newaxis, :],
+                                  distances - 4, distances)
+
+    contact_map = np.where(adjusted_distances < distance_threshold, 1, 0)
+    return contact_map
+
 
 
 # Function to reverse and scale matrix
 def reverse_and_scale_matrix(matrix: np.ndarray, pae_cutoff: float = 12.0) -> np.ndarray:
     scaled_matrix = (pae_cutoff - matrix) / pae_cutoff
     return np.clip(scaled_matrix, 0, 1)
+
+
+
+def get_lia_lir_matrices(subunit_sizes, lia_map, combined_map):
+    
+    lia_matrix = np.zeros((len(subunit_sizes), len(subunit_sizes)))
+    lir_matrix = np.zeros((len(subunit_sizes), len(subunit_sizes)))
+    clia_matrix = np.zeros((len(subunit_sizes), len(subunit_sizes)))
+    clir_matrix = np.zeros((len(subunit_sizes), len(subunit_sizes)))
+
+    for i in range(len(subunit_sizes)):
+        for j in range(len(subunit_sizes)):
+            start_i, end_i = sum(subunit_sizes[:i]), sum(subunit_sizes[:i+1])
+            start_j, end_j = sum(subunit_sizes[:j]), sum(subunit_sizes[:j+1])
+            interaction_submatrix = lia_map[start_i:end_i, start_j:end_j]
+
+            lia_matrix[i, j] = int(np.count_nonzero(interaction_submatrix))
+            residues_i = np.unique(np.where(interaction_submatrix > 0)[0]) + start_i
+            residues_j = np.unique(np.where(interaction_submatrix > 0)[1]) + start_j
+            lir_matrix[i, j] = int(len(residues_i) + len(residues_j))
+
+            combined_submatrix = combined_map[start_i:end_i, start_j:end_j]
+            clia_matrix[i, j] = int(np.count_nonzero(combined_submatrix))
+
+            residues_i = np.unique(np.where(combined_submatrix > 0)[0]) + start_i
+            residues_j = np.unique(np.where(combined_submatrix > 0)[1]) + start_j
+            clir_matrix[i, j] = int(len(residues_i) + len(residues_j))
+    
+    return lia_matrix, lir_matrix, clia_matrix, clir_matrix
+
+
+
+
+
+
+
+
+
 
 # Function to calculate pDockQ
 def calc_pdockq(chain_coords, chain_plddt, t):
