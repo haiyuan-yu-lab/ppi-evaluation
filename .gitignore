@@ -1,7 +1,29 @@
-# Ignore __pycache__ directories
+# Byte-compiled / optimized / DLL files
 __pycache__/
+*.py[cod]
+*$py.class
 
+# Ignore temporary and extracted files
+temp/
+*.tmp
+*.log
 
-# Ignore __init__.py files if they are not essential for your repository
-__init__.py
+# Ignore zip files, extracted directories, or processed files
+*.zip
+*.tar
+*.gz
+analysis/af3_analysis/output/
+
+# Ignore default system and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Ignore virtual environments
+venv/
+.env/
+
 
