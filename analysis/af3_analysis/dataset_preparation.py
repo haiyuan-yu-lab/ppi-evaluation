@@ -15,7 +15,6 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
     
     zip_files = [f for f in os.listdir(zip_folder) if f.endswith('.zip')]
 
-    zip_files = zip_files[:5]
 
     for zip_file in zip_files:
         zip_path = os.path.join(zip_folder, zip_file)
