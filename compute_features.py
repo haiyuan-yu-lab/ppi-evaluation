@@ -195,7 +195,6 @@ def categorize_predictions(pred_protein_a, pred_protein_b):
     pred_protein_a = pred_protein_a.upper()
     pred_protein_b = pred_protein_b.upper()
     ppi = pred_protein_a + ':' + pred_protein_b
-    print(ppi)
 
     label_data = pd.read_csv('/home/yl986/data/protein_interaction/results/af3_ppi_with_label.csv')
 

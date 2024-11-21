@@ -158,20 +158,20 @@ def residue_to_one_letter(residue):
     return three_to_one_map.get(residue, None)
 
 
-
-def delete_rows(df):
+def normalize_scores(df):
     """
-    Removes rows from the DataFrame where the values in 'prot1' and 'prot2' columns are identical.
-
-    Args:
-        df (pd.DataFrame): The input DataFrame.
-
-    Returns:
-        pd.DataFrame: A DataFrame with the specified rows removed.
+    We aim to normalize prediction scores that are out of the [0.0, 1.0] range.
     """
-    # Keep rows where 'prot1' is not equal to 'prot2'
-    filtered_df = df[df['prot1'] != df['prot2']].reset_index(drop=True)
-    return filtered_df
+
+    norm_scores = ['mean_pLDDT', 'mean_pAE','mean_interface_pLDDT', 'mean_interface_pAE', 'ranking_score']
+
+    df['mean_pAE'] = 1 - (df['mean_pAE'] / 36.0)
+    df['mean_interface_pAE'] = 1 - (df['mean_interface_pAE'] / 36.0)
+    df['mean_pLDDT'] = df['mean_pLDDT'] / 100.0
+    df['mean_interface_pLDDT'] = df['mean_interface_pLDDT'] / 100.0 
+    df['ranking_score'] = (df['ranking_score'] + 100.0) / (1.5 + 100.0)
+
+    return df
 
 
 

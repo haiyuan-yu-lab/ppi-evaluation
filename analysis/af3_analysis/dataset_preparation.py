@@ -23,7 +23,7 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
         
         # Exclude homo-dimers from our analysis
         if protein_a == protein_b:
-            print(f"Homo-dimer {protein_a}_{protein_b} excluded!")
+            #print(f"Homo-dimer {protein_a}_{protein_b} excluded!")
             continue
 
         # Extract labels 
@@ -53,12 +53,12 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
         job_request_json = os.path.join(output_dir, f"{zip_name}_job_request.json")
 
         if not (os.path.exists(cif_file) and os.path.exists(summary_json) and os.path.exists(full_data_json)):
-            print(f"Files missing for {zip_name}")
+            #print(f"Files missing for {zip_name}")
             continue
 
         # Extract sequences for prot1 and prot2
         seq1, seq2 = extract_sequences_from_json(job_request_json)
-        print(f"seq1: {seq1}, seq2: {seq2}")
+        #print(f"seq1: {seq1}, seq2: {seq2}")
 
         # Extract mean pLDDT and PAE scores 
         with open(full_data_json, 'r') as f:
@@ -95,12 +95,12 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
         
         avgif_pae = retrieve_IFPAEinter(structure, pae_matrix, remain_contact_lst, 8)
 
-        pdockq2 = calc_pmidockq(avgif_pae, plddt_lst)['pmidockq'].mean()
+        pmidockq = calc_pmidockq(avgif_pae, plddt_lst)['pmidockq']
         
         ## Print output 
-        print(f"pDockQ2: {pdockq2}")
-        print(f"interface pLDDT: {plddt_lst}")
-        print(f"mean interface PAE: {avgif_pae}")
+        #print(f"pDockQ2: {pdockq2}")
+        #print(f"interface pLDDT: {plddt_lst}")
+        #print(f"mean interface PAE: {avgif_pae}")
 
         # Calculate LIS
         chain_a_len = len(pae_matrix) // 2
@@ -120,8 +120,8 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
         # Add data to DataFrame if all required metrics are available
         if None not in (pDockQ, pdockq2, lis_score, iptm, ptm, ranking_confidence):
             row = pd.DataFrame([{
-                'prot1': protein_a,
-                'prot2': protein_b,
+                'prot_A': protein_a,
+                'prot_B': protein_b,
                 'sequence_A': seq1,
                 'sequence_B': seq2,
                 'nonstr_label': nonstr_label,
@@ -131,7 +131,9 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
                 'mean_interface_pLDDT': round(mean_IF_pLDDT, 3),
                 'mean_interface_pAE': round(np.mean(avgif_pae), 3),
                 'pDockQ': pDockQ,
-                'pDockQ2': round(pdockq2, 3),
+                'pDockQ_A': round(pmidockq.iloc[0], 3),
+                'pDockQ_B': round(pmidockq.iloc[1], 3),
+                'pDockQ2': round(pmidockq.mean(), 3),
                 'LIS': lis_score,
                 'ipTM': round(float(iptm), 3),
                 'pTM': round(float(ptm), 3),
@@ -147,10 +149,10 @@ def create_af3_dataset(zip_folder, output_dir):
     """
     Processes all AF3 .zip files to generate a complete DataFrame with all features and sequences.
     """
-    metrics_df = pd.DataFrame(columns=['prot1', 'prot2', 'sequence_A', 'sequence_B',
+    metrics_df = pd.DataFrame(columns=['prot_A', 'prot_B', 'sequence_A', 'sequence_B',
                                        'nonstr_label', 'str_label', 'mean_pLDDT', 'mean_pAE',
                                        'mean_interface_pLDDT', 'mean_interface_pAE',
-                                       'pDockQ', 'pDockQ2', 'LIS', 'ipTM', 'pTM',
+                                       'pDockQ', 'pDockQ_A', 'pDockQ_B', 'pDockQ2', 'LIS', 'ipTM', 'pTM',
                                        'ranking_score'])
 
 
