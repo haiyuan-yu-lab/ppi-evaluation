@@ -14,16 +14,12 @@ PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
 AF3_ANALYSIS_PATH = os.path.join(PROJECT_ROOT, "analysis/af3_analysis")
 AFM_ANALYSIS_PATH = os.path.join(PROJECT_ROOT, "analysis/afm_analysis")
 
-# Output Paths
-AF3_OUTPUT_DIR = os.path.join(AF3_ANALYSIS_PATH, "output")
-AFM_OUTPUT_DIR = os.path.join(AFM_ANALYSIS_PATH, "output")
-
 
 # Data path
 AF_SCORES = os.path.join(PROJECT_ROOT, "data")
 
 # Missing log_file_path
-MISSING_PPI_LABEL = os.path.join(AF_scores, "missing_ppi_label.txt")
+MISSING_PPI_LABEL = os.path.join(AF_SCORES, "missing_ppi_label.txt")
 
 # Results Paths
 AF3_RESULTS_CSV = os.path.join(AF_SCORES, "af3_results.csv")
@@ -35,6 +31,10 @@ FASTA_PATH = "/home/yl986/data/protein_interaction/input_fasta"
 # AF3 prediction folder
 AF3_PRED_FOLDER = "/share/yu/ppi_pred/af3/af3-results"
 AFM_PRED_FOLDER = "/home/yl986/data/afm_results"
+
+AF3_OUTPUT_DIR = os.path.join(AF3_PRED_FOLDER, "output")
+AFM_OUTPUT_DIR = os.path.join(AFM_ANALYSIS_PATH, "output")
+
 
 # Visualization Colors
 COLORS = {
