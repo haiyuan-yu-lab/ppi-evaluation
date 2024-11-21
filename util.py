@@ -7,7 +7,7 @@ from Bio import SeqIO
 
 
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
 
 
 # Analysis path
@@ -21,6 +21,9 @@ AFM_OUTPUT_DIR = os.path.join(AFM_ANALYSIS_PATH, "output")
 
 # Data path
 AF_SCORES = os.path.join(PROJECT_ROOT, "data")
+
+# Missing log_file_path
+MISSING_PPI_LABEL = os.path.join(AF_scores, "missing_ppi_label.txt")
 
 # Results Paths
 AF3_RESULTS_CSV = os.path.join(AF_SCORES, "af3_results.csv")
@@ -82,6 +85,19 @@ def read_cif(cif_file):
         return None, None
 
 
+# Function to parse MMCIF file and return a structure object
+def get_structure(cif_file):
+    
+    parser = MMCIFParser(QUIET=True)
+
+    cif_id = cif_file.split('/')[-1].split('.')[0]  
+
+    try:
+        structure = parser.get_structure(cif_id, cif_file)
+        return structure
+    except Exception as e: 
+        print(f"Error parsing {cif_file}")
+        return None
 
 
 def read_pdb(pdb_file):

@@ -86,14 +86,105 @@ def calc_pdockq(chain_coords, chain_plddt, t):
 
     return pdockq, ppv
 
-# Function to compute pDockQ2
-def compute_pdockq2(plddt, pae):
-    L = 1.31
-    x0 = 84.733
-    k = 0.075
-    b = 0.005
-    pDockQ2 = L / (1 + np.exp(-k * (plddt - pae / 10 - x0))) + b
-    return pDockQ2
+
+
+def retrieve_IFplddt(structure, chain1, chain2_lst, max_dist):
+    ## generate a dict to save IF_res_id
+    chain_lst = list(chain1) + chain2_lst
+
+    ifplddt = []
+    contact_chain_lst = []
+    for res1 in structure[0][chain1]:
+        for chain2 in chain2_lst:
+            count = 0
+            for res2 in structure[0][chain2]:
+                if res1.has_id('CA') and res2.has_id('CA'):
+                   dis = abs(res1['CA']-res2['CA'])
+                   ## add criteria to filter out disorder res
+                   if dis <= max_dist:
+                      ifplddt.append(res1['CA'].get_bfactor())
+                      count += 1
+
+                elif res1.has_id('CB') and res2.has_id('CB'):
+                   dis = abs(res1['CB']-res2['CB'])
+                   if dis <= max_dist:
+                      ifplddt.append(res1['CB'].get_bfactor())
+                      count += 1
+            if count > 0:
+              contact_chain_lst.append(chain2)
+    contact_chain_lst = sorted(list(set(contact_chain_lst)))   
+
+
+    if len(ifplddt)>0:
+       IF_plddt_avg = np.mean(ifplddt)
+    else:
+       IF_plddt_avg = 0
+
+    return IF_plddt_avg, contact_chain_lst
+
+
+def retrieve_IFPAEinter(structure, paeMat, contact_lst, max_dist):
+    ## contact_lst:the chain list that have an interface with each chain. For eg, a tetramer with A,B,C,D chains and A/B A/C B/D C/D interfaces,
+    ##             contact_lst would be [['B','C'],['A','D'],['A','D'],['B','C']]
+
+ 
+    chain_lst = [x.id for x in structure[0]]
+    seqlen = [len(x) for x in structure[0]]
+    ifch1_col=[]
+    ifch2_col=[]
+    ch1_lst=[]
+    ch2_lst=[]
+    ifpae_avg = []
+    d=10
+    for ch1_idx in range(len(chain_lst)):
+      ## extract x axis range from the PAE matrix
+      idx = chain_lst.index(chain_lst[ch1_idx])
+      ch1_sta=sum(seqlen[:idx])
+      ch1_end=ch1_sta+seqlen[idx]
+      ifpae_col = []   
+      ## for each chain that shares an interface with chain1, retrieve the PAE matrix for the specific part.
+      for contact_ch in contact_lst[ch1_idx]:
+        index = chain_lst.index(contact_ch)
+        ch_sta = sum(seqlen[:index])
+        ch_end = ch_sta+seqlen[index]
+        remain_paeMatrix = paeMat[ch1_sta:ch1_end,ch_sta:ch_end]
+        #print(contact_ch, ch1_sta, ch1_end, ch_sta, ch_end)        
+
+        ## get avg PAE values for the interfaces for chain 1
+        mat_x = -1
+        for res1 in structure[0][chain_lst[ch1_idx]]:
+          mat_x += 1
+          mat_y = -1
+          for res2 in structure[0][contact_ch]:
+              mat_y+=1
+              if res1['CA'] - res2['CA'] <=max_dist:
+                 ifpae_col.append(remain_paeMatrix[mat_x,mat_y])
+      ## normalize by d(10A) first and then get the average
+      if not ifpae_col:
+        ifpae_avg.append(0)
+      else:
+        norm_if_interpae=np.mean(1/(1+(np.array(ifpae_col)/d)**2))
+        ifpae_avg.append(norm_if_interpae)
+
+    return ifpae_avg
+    
+
+def calc_pmidockq(ifpae_norm, ifplddt):
+    df = pd.DataFrame()
+    df['ifpae_norm'] = ifpae_norm
+    df['ifplddt'] = ifplddt
+    df['prot'] = df.ifpae_norm*df.ifplddt
+    fitpopt = [1.31034849e+00, 8.47326239e+01, 7.47157696e-02, 5.01886443e-03]  
+    df['pmidockq'] = sigmoid(df.prot.values, *fitpopt)
+
+    return df
+
+def sigmoid(x, L ,x0, k, b):
+    y = L / (1 + np.exp(-k*(x-x0)))+b
+    return (y)
+
+
+
 
 
 ##############################################################################################################################
