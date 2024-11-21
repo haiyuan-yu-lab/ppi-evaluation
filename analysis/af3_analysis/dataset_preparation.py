@@ -14,7 +14,8 @@ from feature_extraction import *
 def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
     
     zip_files = [f for f in os.listdir(zip_folder) if f.endswith('.zip')]
-
+    
+    zip_files = zip_files[:5]
 
     for zip_file in zip_files:
         zip_path = os.path.join(zip_folder, zip_file)
@@ -96,7 +97,8 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
         avgif_pae = retrieve_IFPAEinter(structure, pae_matrix, remain_contact_lst, 8)
 
         pmidockq = calc_pmidockq(avgif_pae, plddt_lst)['pmidockq']
-        
+       
+        pdockq2 = np.mean(pmidockq)
         ## Print output 
         #print(f"pDockQ2: {pdockq2}")
         #print(f"interface pLDDT: {plddt_lst}")
@@ -133,7 +135,7 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
                 'pDockQ': pDockQ,
                 'pDockQ_A': round(pmidockq.iloc[0], 3),
                 'pDockQ_B': round(pmidockq.iloc[1], 3),
-                'pDockQ2': round(pmidockq.mean(), 3),
+                'pDockQ2': round(pdockq2, 3),
                 'LIS': lis_score,
                 'ipTM': round(float(iptm), 3),
                 'pTM': round(float(ptm), 3),
