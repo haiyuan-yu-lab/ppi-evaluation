@@ -28,3 +28,4 @@ venv/
 
 # Ignore script files from my local end.
 *.sh
+data/af3_label.csv
