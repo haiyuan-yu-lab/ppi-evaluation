@@ -128,7 +128,7 @@ if __name__ == '__main__':
         df_complete = None
         complete_list = set()
     # List all files in the directory
-    f_list = list(raw_result_root.glob('fold*zip'))[:5]
+    f_list = list(raw_result_root.glob('fold*zip'))
     print(f'{len(f_list)} zipped files to process...')
     results_all = []
     for f_path in f_list:
