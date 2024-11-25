@@ -19,6 +19,9 @@ def transform_pae_matrix(pae_matrix, pae_cutoff=12):
 
     return transformed_pae
 
+    
+
+
 def calculate_mean_lis(transformed_pae, subunit_number):
     # Calculate the cumulative sum of protein lengths to get the end indices of the submatrices
     cum_lengths = np.cumsum(subunit_number)
@@ -150,8 +153,18 @@ def get_lia_lir_matrices(subunit_sizes, lia_map, combined_map):
 
 
 
+def extract_lis_score(mean_lis_matrix):
 
-
+    if mean_lis_matrix.shape != (2, 2):
+        raise ValueError("mean_lis_matrix must be a 2x2 matrix.")
+    
+    # Extract off-diagonal elements [0,1] and [1,0]
+    lis_0_1 = mean_lis_matrix[0, 1]
+    lis_1_0 = mean_lis_matrix[1, 0]
+    
+    # Compute the mean LIS value
+    mean_lis_value = (lis_0_1 + lis_1_0) / 2.0
+    return mean_lis_value
 
 
 # Function to calculate pDockQ
@@ -317,7 +330,7 @@ def categorize_predictions(pred_protein_a, pred_protein_b):
     pred_protein_b = pred_protein_b.upper()
     ppi = pred_protein_a + ':' + pred_protein_b
 
-    label_data = pd.read_csv('/home/yl986/data/protein_interaction/results/af3_ppi_with_label.csv')
+    label_data = pd.read_csv('data/af3_label.csv')
 
     for _, row in label_data.iterrows():
         ppi_ref = row['ppi']

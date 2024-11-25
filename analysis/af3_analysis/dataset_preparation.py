@@ -15,7 +15,7 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
     
     zip_files = [f for f in os.listdir(zip_folder) if f.endswith('.zip')]
     
-    zip_files = zip_files[:5]
+    print(f"Number of AF3 prediction folders: {len(zip_files)}")
 
     for zip_file in zip_files:
         zip_path = os.path.join(zip_folder, zip_file)
@@ -36,11 +36,10 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
         # If both labels are missing, log the entry to the text file
         if nonstr_label is None and str_label is None:
             entry = f"{protein_a}_{protein_b}"
-            if not os.path.exists(MISSING_PPI_LABEL):
-                if entry not in logged_entries:
-                    with open(log_file_path, 'a') as log_file:
-                        log_file.write(entry + "\n")
-                    logged_entries.add(entry)
+            if entry not in logged_entries:
+                with open(log_file_path, 'a') as log_file:
+                    log_file.write(entry + "\n")
+                logged_entries.add(entry)
             continue
 
         # Extract AF3 prediction .zip files
@@ -74,10 +73,13 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
         with open(full_data_json, 'r') as f:
             full_data = json.load(f)
 
-        plddt = np.mean(np.array(full_data['atom_plddts']))
+        mean_plddt = np.mean(np.array(full_data['atom_plddts']))
+        best_plddt = np.max(np.array(full_data['atom_plddts']))
+
         pae_matrix = np.array(full_data['pae'])
         mean_pae = np.mean(pae_matrix)
        
+        print(f"Dimension of PAE matrix: {pae_matrix.shape}")
 
         # Transform the PAE matrix
         transformed_pae_matrix = transform_pae_matrix(pae_matrix)
@@ -89,7 +91,10 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
         mean_lis_matrix = np.nan_to_num(mean_lis_matrix)
 
         print(mean_lis_matrix) 
-        lis_score = (mean_lis_matrix[0,1] + mean_lis_matrix[1,0]) / 2
+       
+        # From our nxn mean_lis_matrix, extract the mean & best LIS scores.
+        mean_lis_score = extract_lis_score(mean_lis_matrix)
+        best_lis_score = np.max(mean_lis_matrix)
 
         # Calculate contact map
         contact_map = calculate_contact_map(cif_file)
@@ -100,8 +105,9 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
         mean_clis_matrix = np.nan_to_num(mean_clis_matrix)
 
         lia_matrix, lir_matrix, clia_matrix, clir_matrix = get_lia_lir_matrices(subunit_sizes, lia_map, combined_map)
-
-        
+        print(f"lia_matrix: {lia_matrix}")
+        mean_lia_score = extract_lis_score(lia_matrix)
+        best_lia_score = np.max(mean_lia_score)
 
         # Get the structure of a MMCIF file
         structure = get_structure(cif_file)
@@ -129,14 +135,17 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
         mean_IF_pLDDT = np.mean(plddt_lst)
         
         avgif_pae = retrieve_IFPAEinter(structure, pae_matrix, remain_contact_lst, 8)
-
+        print(f"avgif_pae: {avgif_pae}")
         pmidockq = calc_pmidockq(avgif_pae, plddt_lst)['pmidockq']
-       
-        pdockq2 = np.mean(pmidockq)
+        
+        # Average pDockQ2
+        mean_pdockq2 = np.mean(pmidockq)
+        best_pdockq2 = np.max(pmidockq)
+
         ## Print output 
-        #print(f"pDockQ2: {pdockq2}")
-        #print(f"interface pLDDT: {plddt_lst}")
-        #print(f"mean interface PAE: {avgif_pae}")
+        print(f"pDockQ2: {mean_pdockq2}")
+        print(f"interface pLDDT: {plddt_lst}")
+        print(f"mean interface PAE: {avgif_pae}")
 
 
         # Read CIF file and calculate pDockQ
@@ -151,7 +160,7 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
         ranking_confidence = summary_data.get('ranking_score', None)
 
         # Add data to DataFrame if all required metrics are available
-        if None not in (pDockQ, pdockq2, lis_score, iptm, ptm, ranking_confidence):
+        if None not in (pDockQ, mean_pdockq2, mean_lis_score, iptm, ptm, ranking_confidence):
             row = pd.DataFrame([{
                 'prot_A': protein_a,
                 'prot_B': protein_b,
@@ -159,15 +168,19 @@ def process_zip(zip_folder, output_dir, metrics_df, log_file_path):
                 'sequence_B': seq2,
                 'nonstr_label': nonstr_label,
                 'str_label': str_label,
-                'mean_pLDDT': round(plddt, 3),
-                'mean_pAE': round(mean_pae, 3),
-                'mean_interface_pLDDT': round(mean_IF_pLDDT, 3),
-                'mean_interface_pAE': round(np.mean(avgif_pae), 3),
+                'mean_pLDDT': round(mean_plddt, 3), # average pLDDT of the best template
+                'best_pLDDT': round(best_plddt, 3), # best pLDDT of the best template
+                'mean_pAE': round(mean_pae, 3),     # mean pAE of the PAE matrix
+                'mean_interface_pLDDT': round(mean_IF_pLDDT, 3), # mean value of the pLDDT values of the interface residues within the best template
+                'best_interface_pLDDT': round(np.max(plddt_lst), 3), # best interface pLDDT out of interface residues within the best template
+                'mean_interface_pAE': round(np.mean(avgif_pae), 3), # mean PAE values of the interface PAE from chain A and chain B
                 'pDockQ': pDockQ,
-                'pDockQ_A': round(pmidockq.iloc[0], 3),
-                'pDockQ_B': round(pmidockq.iloc[1], 3),
-                'pDockQ2': round(pdockq2, 3),
-                'LIS': lis_score,
+                'mean_pDockQ2': round(mean_pdockq2, 3), # mean pDockQ2 value of both chains
+                'best_pDockQ2': round(best_pdockq2, 3), # best pDockQ2 value out of both chains
+                'mean_LIS': round(mean_lis_score, 3), # mean LIS value of the best prediction model
+                'best_LIS': round(best_lis_score, 3),
+                'mean_LIA': round(mean_lia_score,3), 
+                'best_LIA': round(best_lia_score, 3),
                 'ipTM': round(float(iptm), 3),
                 'pTM': round(float(ptm), 3),
                 'ranking_score': round(float(ranking_confidence), 2)
@@ -182,11 +195,7 @@ def create_af3_dataset(zip_folder, output_dir):
     """
     Processes all AF3 .zip files to generate a complete DataFrame with all features and sequences.
     """
-    metrics_df = pd.DataFrame(columns=['prot_A', 'prot_B', 'sequence_A', 'sequence_B',
-                                       'nonstr_label', 'str_label', 'mean_pLDDT', 'mean_pAE',
-                                       'mean_interface_pLDDT', 'mean_interface_pAE',
-                                       'pDockQ', 'pDockQ_A', 'pDockQ_B', 'pDockQ2', 'LIS', 'ipTM', 'pTM',
-                                       'ranking_score'])
+    metrics_df = pd.DataFrame(columns=['mean_pLDDT', 'best_pLDDT', 'mean_pAE', 'mean_interface_pLDDT', 'best_interface_pLDDT', 'mean_interface_pAE', 'pDockQ', 'mean_pDockQ2', 'best_pDockQ2', 'mean_LIS', 'best_LIS', 'mean_LIA', 'best_LIA', 'ipTM', 'pTM', 'ranking_score'])
 
 
     metrics_df = process_zip(zip_folder, output_dir, metrics_df, MISSING_PPI_LABEL)

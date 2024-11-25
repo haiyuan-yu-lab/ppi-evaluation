@@ -1,0 +1,27 @@
+<frozen importlib._bootstrap>:219: RuntimeWarning: scipy._lib.messagestream.MessageStream size changed, may indicate binary incompatibility. Expected 56 from C header, got 64 from PyObject
+Traceback (most recent call last):
+  File "run_af3.py", line 61, in <module>
+    main()
+  File "run_af3.py", line 10, in main
+    af3_df = create_af3_dataset(AF3_PRED_FOLDER, AF3_OUTPUT_DIR)  # AF3_PRED_FOLDER = '/share/yu/ppi-pred/af3/af3_results'
+  File "/home/jc3668/ppi-evaluation/analysis/af3_analysis/dataset_preparation.py", line 201, in create_af3_dataset
+    metrics_df = process_zip(zip_folder, output_dir, metrics_df, MISSING_PPI_LABEL)
+  File "/home/jc3668/ppi-evaluation/analysis/af3_analysis/dataset_preparation.py", line 31, in process_zip
+    nonstr_label, str_label = categorize_predictions(protein_a, protein_b)
+  File "/home/jc3668/ppi-evaluation/compute_features.py", line 333, in categorize_predictions
+    label_data = pd.read_csv('data/af3_label.csv')
+  File "/home/jc3668/miniconda3/envs/alphafold/lib/python3.8/site-packages/pandas/util/_decorators.py", line 211, in wrapper
+    return func(*args, **kwargs)
+  File "/home/jc3668/miniconda3/envs/alphafold/lib/python3.8/site-packages/pandas/util/_decorators.py", line 331, in wrapper
+    return func(*args, **kwargs)
+  File "/home/jc3668/miniconda3/envs/alphafold/lib/python3.8/site-packages/pandas/io/parsers/readers.py", line 950, in read_csv
+    return _read(filepath_or_buffer, kwds)
+  File "/home/jc3668/miniconda3/envs/alphafold/lib/python3.8/site-packages/pandas/io/parsers/readers.py", line 605, in _read
+    parser = TextFileReader(filepath_or_buffer, **kwds)
+  File "/home/jc3668/miniconda3/envs/alphafold/lib/python3.8/site-packages/pandas/io/parsers/readers.py", line 1442, in __init__
+    self._engine = self._make_engine(f, self.engine)
+  File "/home/jc3668/miniconda3/envs/alphafold/lib/python3.8/site-packages/pandas/io/parsers/readers.py", line 1735, in _make_engine
+    self.handles = get_handle(
+  File "/home/jc3668/miniconda3/envs/alphafold/lib/python3.8/site-packages/pandas/io/common.py", line 856, in get_handle
+    handle = open(
+FileNotFoundError: [Errno 2] No such file or directory: 'data/af3_label.csv'

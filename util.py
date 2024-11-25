@@ -4,7 +4,8 @@ import numpy as np
 from Bio.PDB.MMCIFParser import MMCIFParser
 from Bio.PDB import PDBParser
 from Bio import SeqIO
-
+import pandas as pd
+from pathlib import Path
 
 
 PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
@@ -36,13 +37,6 @@ AF3_OUTPUT_DIR = os.path.join(AF3_PRED_FOLDER, "output")
 AFM_OUTPUT_DIR = os.path.join(AFM_ANALYSIS_PATH, "output")
 
 
-# Visualization Colors
-COLORS = {
-    "nonstruct_neg": "#EF4035",
-    "nonstruct_pos": "#6EB43F",
-    "struct_neg": "#F8981D",
-    "struct_pos": "#006699"
-}
 
 # Feature Columns
 FEATURE_COLUMNS = ['LIS', 'ipTM', 'pTM', 'pLDDT', 'pDockQ', 'pAE', 'pDockQ2', 'ranking_score']
@@ -172,6 +166,83 @@ def normalize_scores(df):
     df['ranking_score'] = (df['ranking_score'] + 100.0) / (1.5 + 100.0)
 
     return df
+
+
+
+
+
+def build_af3_ppi_with_label(output_path):
+    """
+    Build the af3_ppi_with_label.csv file efficiently, minimizing memory usage.
+
+    Parameters:
+    - output_path (str): Path where the resulting CSV file will be saved.
+
+    Returns:
+    - None: Saves the output CSV file to the specified path.
+    """
+    # Paths to input files
+    data_root = Path('/home/yl986/data')
+    parsed_root = data_root / 'protein_interaction/parsed'
+    hint_root = data_root / 'HINT/update_2024/outputs'
+    ires_root = data_root / 'IRES/parsed_files/20241018'
+
+    # Load the interaction sets from BioGRID, IntAct, and STRING (Exclusion set)
+    ppi_comb3 = pd.read_csv(parsed_root / 'cache/ppi_comb3_rev.tsv', sep='\t', dtype={'evidence_code': str, 'pubmed': str}, usecols=['ppi'])
+
+    # Updated with appended HINT (2024.6.27)
+    ppi_comb4 = pd.read_csv(parsed_root / 'cache/ppi_comb4.csv', dtype={'evidence_code': str, 'gene_name1': str, 'gene_name2': str, 'pubmed': str}, usecols=['ppi']) 
+
+    # Positive sets
+    hint_lcb24 = pd.read_csv(hint_root / 'HINT_format/taxa/HomoSapiens/HomoSapiens_lcb_hq.txt', sep='\t', dtype=str)
+
+    # Positive sets
+    hint_lcb24['ppi'] = hint_lcb24.apply(lambda x: ':'.join(sorted([x['Uniprot_A'], x['Uniprot_B']])), axis=1)
+    hint_lcb24['ppi'] = hint_lcb24.apply(lambda x: ':'.join(sorted([x['Uniprot_A'], x['Uniprot_B']])), axis=1)
+
+    # Prepare nonstructural lists
+    nonstr_exclusion = pd.concat([ppi_comb3[['ppi']], ppi_comb4[['ppi']]])['ppi'].drop_duplicates().tolist()
+    nonstr_pos = hint_lcb24['ppi'].drop_duplicates().tolist()
+
+    
+    # Complex-based (structural)
+    ires_human = pd.read_csv(ires_root / 'ires_human_all.csv', usecols=['ppi'])
+    ppi_by_pdb = pd.read_csv(ires_root / 'ppi_by_pdb_info.csv', usecols=['ppi'])
+
+    ppi_in_pdb = ppi_by_pdb['ppi'].drop_duplicates().tolist()
+    ppi_str = ires_human['ppi'].drop_duplicates().tolist()
+
+
+    all_ppis = set(nonstr_exclusion + nonstr_pos + ppi_in_pdb + ppi_str)
+    df_ppi = pd.DataFrame({'ppi': list(all_ppis)})
+
+    # Assign labels using the helper function
+    df_labeled_ppi = assign_ppi_label(df_ppi, nonstr_pos, nonstr_exclusion, ppi_str, ppi_in_pdb)
+
+    # Save the labeled DataFrame to the specified output path
+    df_labeled_ppi.to_csv(output_path, index=False)
+
+
+
+def assign_ppi_label(df_ppi, nonstr_pos, nonstr_ex, str_pos, ppi_in_pdb):
+    df_ppi = df_ppi.copy()
+    # non-structural label
+    df_ppi['non_struct_label'] = -1
+    df_ppi.loc[~df_ppi['ppi'].isin(nonstr_ex), 'non_struct_label'] = 0
+    df_ppi.loc[df_ppi['ppi'].isin(nonstr_pos), 'non_struct_label'] = 1
+
+    # structural label
+    df_ppi['str_label'] = -1  # interactions not found in the same complex structure / no structural evidence
+    df_ppi.loc[df_ppi['ppi'].isin(ppi_in_pdb), 'str_label'] = 0  # found in same complex
+    df_ppi.loc[df_ppi['ppi'].isin(str_pos), 'str_label'] = 1  # structural evidence
+    
+    label_dict = {-1: 'unclear (exclude for analysis)', 0: 'non-interacting pairs', 1: 'HINT-binary-HQ-LC'}
+    df_ppi['nonstr_label_name'] = df_ppi['non_struct_label'].apply(lambda x: label_dict.get(x, x))
+
+    label_dict = {-1: 'not found in same PDB complex', 0: 'no physical interaction', 1: 'direct physical interaction'}
+    df_ppi['str_label_name'] = df_ppi['str_label'].apply(lambda x: label_dict[x])
+    
+    return df_ppi
 
 
 

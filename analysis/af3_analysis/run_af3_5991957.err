@@ -1,0 +1,5 @@
+<frozen importlib._bootstrap>:219: RuntimeWarning: scipy._lib.messagestream.MessageStream size changed, may indicate binary incompatibility. Expected 56 from C header, got 64 from PyObject
+/home/jc3668/ppi-evaluation/util.py:190: DtypeWarning: Columns (8,9,10,12,22,24) have mixed types. Specify dtype option on import or set low_memory=False.
+  ppi_comb3 = pd.read_csv(parsed_root / 'cache/ppi_comb3_rev.tsv', sep='\t', dtype={'evidence_code': str, 'pubmed': str})
+/home/jc3668/ppi-evaluation/util.py:191: DtypeWarning: Columns (4,5,9,11,12,16) have mixed types. Specify dtype option on import or set low_memory=False.
+  ppi_comb4 = pd.read_csv(parsed_root / 'cache/ppi_comb4.csv', dtype={'evidence_code': str, 'gene_name1': str, 'gene_name2': str, 'pubmed': str})
