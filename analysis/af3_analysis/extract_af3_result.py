@@ -44,7 +44,7 @@ def read_cif(structure):
     return chain_coords, chain_plddt
 
 
-def calc_af3_metrics_base(res_fpath, ppi, model_idx=0):
+def calc_af3_metrics_base(res_fpath, ppi, model_idx=0, ppi_sep=':'):
     if isinstance(res_fpath, str):
         res_fpath = Path(res_fpath)
     
@@ -67,12 +67,18 @@ def calc_af3_metrics_base(res_fpath, ppi, model_idx=0):
     # Calculate pdockq
     pdockq, ppv = calc_pdockq(chain_coords, chain_plddt, t=8) # Distance threshold, set to 8
     # TODO: pDockQ2
+    try:
+        prot1, prot2 = ppi.split(ppi_sep, 1)
+    except ValueError:
+        print('Exception for', ppi)
+        return {}
+
     result_dict = {
-        'ppi': ppi.replace('_', ':'),
+        'ppi': ':'.join(sorted([prot1, prot2])),
         'pDockQ': pdockq, 
         'PPV': round(ppv, 3),
-        'prot1': ppi.split('_')[0],
-        'prot2': ppi.split('_')[1],
+        'prot1': prot1,
+        'prot2': prot2,
         'ipTM': round(float(iptm), 3),
         'iptm_ptm': round(float(iptm*0.8 + ptm*0.2),3),
         'pTM': round(float(ptm), 3),
@@ -91,8 +97,9 @@ def calc_af3_metrics_base(res_fpath, ppi, model_idx=0):
     return result_dict
 
 
-def assign_ppi_label(df_ppi, nonstr_pos, nonstr_ex, str_pos, ppi_in_pdb):
-    df_ppi = df_ppi.copy()
+def assign_ppi_label(df_ppi_raw, nonstr_pos, nonstr_ex, str_pos, ppi_in_pdb):
+    df_ppi = df_ppi_raw.copy()
+    df_ppi['ppi'] = df_ppi_raw['ppi'].apply(lambda x: ':'.join(sorted(x.split(':'))))  # make sure proteins are sorted
     # non-structural label
     df_ppi['non_struct_label'] = -1
     df_ppi.loc[~df_ppi['ppi'].isin(nonstr_ex), 'non_struct_label'] = 0
@@ -117,32 +124,50 @@ if __name__ == '__main__':
     data_root = Path('/home/yl986/data/protein_interaction')
     parsed_result_root = data_root / 'results'
     # result_cache_file = '/home/yl986/alphafold-2.3.2/logs/str_pred.log'
-    output_cache_path = '/home/yl986/data/protein_interaction/results/af3_scores_202411.csv'  # already parsed
-    # output_path = '/home/yl986/data/protein_interaction/results/af3_scores_20241122.csv'
-    output_path = '/home/yl986/data/protein_interaction/results/af3_scores_test1.csv'
+    output_cache_path = '/home/yl986/data/protein_interaction/results/af3_scores_20241204.csv'  # already parsed
+    # output_path = '/home/yl986/data/protein_interaction/results/af3_scores_test.csv'
+    output_path = '/home/yl986/data/protein_interaction/results/af3_scores_20241209.csv'
+    af3_extract_log = '/home/yl986/data/protein_interaction/results/af3_zip_complete.log'
+
     OVERWRITE = False
     if os.path.exists(output_cache_path):
         df_complete = pd.read_csv(output_cache_path)
-        complete_list = set(df_complete['ppi'].tolist())
+        complete_set = set(df_complete['ppi'].tolist())
+        print(len(complete_set), 'pairs already processed')
     else:
         df_complete = None
-        complete_list = set()
+        complete_set = set()
+    
+    if os.path.exists(af3_extract_log):
+        with open(af3_extract_log) as f:
+            complete_zips = f.read().splitlines()
+    else:
+        complete_zips = []
+
     # List all files in the directory
     f_list = list(raw_result_root.glob('fold*zip'))
     print(f'{len(f_list)} zipped files to process...')
     results_all = []
     for f_path in f_list:
+        if not OVERWRITE and f_path.name in complete_zips:
+            continue
         if f_path.stem.startswith('folds'):
             temp_batch_dir = Path('temp')
             with zipfile.ZipFile(f_path, 'r') as zip_ref:
                 zip_ref.extractall(temp_batch_dir)
             for cur_path in temp_batch_dir.glob('*'):
                 if cur_path.is_dir():
-                    ppi = cur_path.stem.upper()
-                    if ppi in complete_list and not OVERWRITE:
+                    ppi = cur_path.stem.upper().replace('_', ':', 1)
+                    if ppi in complete_set and not OVERWRITE:
+                        complete_zips.append(f_path.name)
                         continue
                     cur_res_dict = calc_af3_metrics_base(cur_path, ppi)
+                    if not cur_res_dict:
+                        continue
                     results_all.append(cur_res_dict)
+                    complete_set.add(ppi)
+                    complete_zips.append(f_path.name)
+
             shutil.rmtree(temp_batch_dir)
         
         else:
@@ -150,16 +175,21 @@ if __name__ == '__main__':
             # base_name = os.path.splitext(f_path)[0]  # Remove the .zip extension
             temp_dir_path = Path(f_path.stem.replace("fold_", ""))   # Remove the "fold_" prefix
 
+            ppi = temp_dir_path.stem.upper().replace('_', ':', 1)
+            if ppi in complete_set and not OVERWRITE:
+                complete_zips.append(f_path.name)
+                continue
+
             # Unzip the file into the target directory
             with zipfile.ZipFile(f_path, 'r') as zip_ref:
                 zip_ref.extractall(temp_dir_path)
-            
-            ppi = temp_dir_path.stem.upper()
-            if ppi in complete_list and not OVERWRITE:
-                continue
+
             cur_res_dict = calc_af3_metrics_base(temp_dir_path, ppi)
+            if not cur_res_dict:
+                continue
             results_all.append(cur_res_dict)
-            # complete_list.add(ppi)
+            complete_set.add(ppi)
+            complete_zips.append(f_path.name)
             # After operations, remove the directory
             shutil.rmtree(temp_dir_path)
 
@@ -167,9 +197,12 @@ if __name__ == '__main__':
         #     break
     print(f'{len(results_all)} interactions processed')
     
+    with open(af3_extract_log, 'w') as f:  # write complete log
+        f.write('\n'.join(sorted(set(complete_zips))))
+
     df_result = pd.DataFrame.from_dict(results_all)
     if not OVERWRITE and not isinstance(df_complete, type(None)):
-        df_result = pd.concat([df_complete, df_result]).drop_duplicates().reset_index(drop=True)
+        df_result = pd.concat([df_complete, df_result]).drop_duplicates(['ppi']).reset_index(drop=True)
     
     with open(data_root / 'parsed/ppi_label_reference.pkl', 'rb') as f:
         # reference dict for label assignment --- 
@@ -178,7 +211,9 @@ if __name__ == '__main__':
     
     df_result_labeled = assign_ppi_label(df_result, ppi_label_ref_dict['nonstr_pos'], ppi_label_ref_dict['nonstr_exclusion'], 
                                  ppi_label_ref_dict['true_ppi_in_pdb'], ppi_label_ref_dict['all_pair_in_pdb'])
-    
+    print(df_result_labeled.groupby('str_label')['ppi'].nunique())
+    print(df_result_labeled.groupby('non_struct_label')['ppi'].nunique())
+    df_result_labeled['is_homo'] = (df_result_labeled['prot1'] == df_result_labeled['prot2'])
     df_result_labeled.to_csv(output_path, index=False)
 
     print("All operations completed successfully.")
